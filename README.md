@@ -24,7 +24,7 @@ npm run dev        # https://localhost:5173 (IWSDK serves HTTPS and injects a Qu
 - **Quest emulator (no headset):** on localhost, the ENTER VR OFFICE and MR buttons start an
   emulated Quest 3 session (IWER). MR uses an emulated office room with a table, walls and a door.
 - **Real Quest:** open the Network URL that `npm run dev` prints (same Wi-Fi, accept the
-  certificate warning), or the GitHub Pages link. Hand tracking: fingertips press keys, a fast
+  certificate warning), or the live link above. Hand tracking: fingertips press keys, a fast
   palm-down swipe over the laptop slams it, a palm-up flick reopens it. Controllers work too
   (a stylus on each controller is the fingertip).
 - `npm run dev:managed` starts IWSDK's managed browser and agent tooling instead.
@@ -44,9 +44,12 @@ Then the first real shift starts. Pressing the red button skips training.
 
 ## Deploy
 
-`.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every push to `main`.
-One-time setup: repo Settings → Pages → Source: **GitHub Actions**. The build has no runtime
-CDN dependencies: fonts and the hand/controller models are bundled.
+Live at **https://icy-darkness-116f.kaigets123.workers.dev** (Cloudflare). The game is fully
+static: `npm run build` writes everything to `dist/`, and that folder is what gets uploaded. It has
+no runtime CDN dependencies: fonts, hand/controller models and Gary's voice clips are bundled.
+
+Gary's voice is pre-recorded with ElevenLabs: put `ELEVENLABS_API_KEY` in `.env.local` (see
+`.env.example`) and run `npm run voice`; the key never ships with the site.
 
 ## Stack
 
