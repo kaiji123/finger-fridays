@@ -167,7 +167,9 @@ export class MRDesk {
     };
     const path = { ...DEFAULT_PATH, floorY: floorY ?? 0 };
     const front = hit(_o.set(0, 1, -0.65), _d.set(0, 0, -1));
-    if (front !== Infinity) path.aisleZ = -0.65 - THREE.MathUtils.clamp(front - 0.4, 0.55, 1.6);
+    // at least ~0.75 m past the laptop (z -0.74), so his belly and lean clear the lid,
+    // even if that puts him a little into a very close wall
+    if (front !== Infinity) path.aisleZ = -0.65 - THREE.MathUtils.clamp(front - 0.4, 0.85, 1.6);
     const left = hit(_o.set(0, 1, path.aisleZ), _d.set(-1, 0, 0));
     const right = hit(_o.set(0, 1, path.aisleZ), _d.set(1, 0, 0));
     const L = THREE.MathUtils.clamp(left, 1.2, 7);

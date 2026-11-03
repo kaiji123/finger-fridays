@@ -239,11 +239,11 @@ export function buildOffice() {
     office.add(leaf);
   }
   const pens = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.1, 14), std(0x2b2e36));
-  pens.position.set(-0.3, DESK_Y + 0.05, -1.0);
+  pens.position.set(0.4, DESK_Y + 0.05, -1.0);
   office.add(pens);
   ['#dc2626', '#2563eb', '#16a34a'].forEach((c, i) => {
     const pen = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.14, 6), std(c));
-    pen.position.set(-0.3 + (i - 1) * 0.012, DESK_Y + 0.12, -1.0);
+    pen.position.set(0.4 + (i - 1) * 0.012, DESK_Y + 0.12, -1.0);
     pen.rotation.z = (i - 1) * 0.15;
     office.add(pen);
   });

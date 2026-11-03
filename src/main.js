@@ -75,13 +75,15 @@ async function start() {
   };
 
   const keyboard = new Keyboard();
-  keyboard.group.position.set(-0.04, DESK_Y, -0.4);
+  keyboard.group.position.set(-0.04, DESK_Y, -0.38);
   const laptop = new Laptop();
-  laptop.group.position.set(0, DESK_Y, -0.74);
+  laptop.group.position.set(0, DESK_Y, -0.76);
+  laptop.group.scale.setScalar(1.25); // big enough to read the email from the seat
   // second monitor: angled in and kept within ~25° of centre so it stays in a narrow field of view
   const board = new StatusBoard();
-  board.group.position.set(-0.5, DESK_Y, -0.86);
+  board.group.position.set(-0.52, DESK_Y, -0.9);
   board.group.rotation.y = 0.5;
+  board.group.scale.setScalar(1.35);
   const boss = new Boss();
   kit.boss = boss;
 

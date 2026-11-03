@@ -476,6 +476,18 @@ export class Game {
     }
   }
 
+  // What the strip behind the keyboard shows.
+  tickerView() {
+    const ORANGE = '#ff8a3d';
+    if (this.state === 'menu') return { text: 'POKE THE RED BUTTON', color: ORANGE };
+    if (this.state === 'countdown') return { text: `GET READY... ${Math.max(1, Math.ceil(this.countdown))}`, color: ORANGE };
+    if (this.state === 'results') return { text: this.result?.verdict || '', color: this.result?.verdict === 'FIRED' ? '#ff6b6b' : '#5fcf86' };
+    if (this.state === 'paused') return { text: 'PAUSED: POKE THE RED BUTTON' };
+    if (this.state === 'tutorial' && this.tut?.step !== 'type') return { text: this.tutorialView().instruction.toUpperCase(), color: ORANGE };
+    if (!this.laptop.isOpen) return { text: 'LAPTOP CLOSED: FLIP IT OPEN', color: ORANGE };
+    return { prompt: this.prompt, typed: this.typed };
+  }
+
   redraw() {
     const minutes = (this.typed.length / 5) / Math.max(this.elapsed || 0, 1) * 60;
     const curseNames = [...this.curses].map((c) => CURSES[c].name);
@@ -501,6 +513,7 @@ export class Game {
       };
     }
     this.laptop.draw(laptopView);
+    this.keyboard.drawTicker(this.tickerView());
 
     const alert = (this.state === 'playing' || this.state === 'paused') && (this.boss.state === 'approach' || this.boss.state === 'inspect');
     const next = RANKS[this.save.rank + 1];

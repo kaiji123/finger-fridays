@@ -1,7 +1,7 @@
 import * as THREE from '@iwsdk/core';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { canvasTexture, SANS, std, damp } from '../util.js';
+import { canvasTexture, SANS, MONO, std, damp } from '../util.js';
 
 // A big, forgiving desk keyboard. Keys are 4.2cm wide (a real keyboard is ~1.8cm).
 // Modelled on a retro mechanical board (reference: Keychron K8 retro, Das Keyboard):
@@ -222,6 +222,7 @@ export class Keyboard {
     this.keys = [];
     this.meshes = [];
     this.group.add(buildCase());
+    this.buildTicker();
 
     const sideMats = Object.fromEntries(Object.entries(STYLES).map(([k, v]) => [k, std(v.side, { roughness: 0.6 })]));
     const makeKey = (slot, x, z, units, style, row) => {
@@ -259,6 +260,82 @@ export class Keyboard {
         x += units * U;
       }
     }
+  }
+
+  // Text strip behind the top row (like a laptop Touch Bar, angled up at the player):
+  // the next stretch of the email in big letters, right where the eyes already are.
+  buildTicker() {
+    const W = WIDTH_U * U + RIM * 2;
+    const D = ROWS.length * U + RIM * 2;
+    const DEPTH = 0.075;
+    const TILT = 0.8;
+    const housing = new THREE.Mesh(new RoundedBoxGeometry(W, 0.02, DEPTH, 3, 0.007), std(0xd3d0c9, { roughness: 0.4, metalness: 0.35 }));
+    housing.rotation.x = TILT;
+    housing.position.set(0, 0.034, -D / 2 - (DEPTH * Math.cos(TILT)) / 2 + 0.002);
+    housing.castShadow = true;
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.02, DEPTH - 0.012), std(0x0b0c0f, { roughness: 0.15, metalness: 0.2 }));
+    glass.rotation.x = -Math.PI / 2;
+    glass.position.y = 0.0101;
+    this.ticker = canvasTexture(2048, 198);
+    const text = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.04, (W - 0.04) * (198 / 2048)), new THREE.MeshBasicMaterial({ map: this.ticker.tex, transparent: true, toneMapped: false }));
+    text.rotation.x = -Math.PI / 2;
+    text.position.y = 0.0103;
+    housing.add(glass, text);
+    this.group.add(housing);
+    this.tickerSig = '';
+  }
+
+  // view: { prompt, typed } while typing, or { text, color } for a short message
+  drawTicker(view) {
+    const sig = JSON.stringify(view);
+    if (sig === this.tickerSig) return;
+    this.tickerSig = sig;
+    const { ctx, canvas, tex } = this.ticker;
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.textBaseline = 'middle';
+    if (!view.prompt) {
+      ctx.textAlign = 'center';
+      ctx.font = `700 104px ${SANS}`;
+      ctx.fillStyle = view.color || '#f4efe6';
+      ctx.fillText(view.text || '', w / 2, h / 2 + 4);
+      tex.needsUpdate = true;
+      return;
+    }
+    const { prompt, typed } = view;
+    ctx.font = `700 140px ${MONO}`;
+    const cw = ctx.measureText('M').width;
+    const visible = Math.floor((w - 40) / cw);
+    const cursor = typed.length;
+    // keep a few typed letters on the left for context, the rest is what comes next
+    const start = Math.max(0, Math.min(cursor - 5, prompt.length - visible));
+    ctx.textAlign = 'center';
+    for (let k = 0; k < visible; k++) {
+      const i = start + k;
+      if (i >= prompt.length) break;
+      const x = 20 + k * cw + cw / 2;
+      const want = prompt[i];
+      if (i < cursor) {
+        const got = typed[i];
+        const ok = got.toLowerCase() === want.toLowerCase();
+        if (!ok) {
+          ctx.fillStyle = 'rgba(220, 38, 38, 0.55)';
+          ctx.fillRect(x - cw / 2, 18, cw, h - 36);
+        }
+        ctx.fillStyle = ok ? '#5fcf86' : '#ffd0cc';
+        ctx.fillText(got === ' ' ? (ok ? ' ' : '_') : got, x, h / 2 + 6);
+      } else if (i === cursor) {
+        ctx.fillStyle = '#ff8a3d';
+        ctx.fillRect(x - cw / 2 + 2, 14, cw - 4, h - 28);
+        ctx.fillStyle = '#14161b';
+        ctx.fillText(want === ' ' ? '␣' : want, x, h / 2 + 6);
+      } else {
+        ctx.fillStyle = want === ' ' ? 'rgba(244,239,230,0.3)' : '#f4efe6';
+        ctx.fillText(want === ' ' ? '·' : want, x, h / 2 + 6);
+      }
+    }
+    tex.needsUpdate = true;
   }
 
   get letterKeys() {

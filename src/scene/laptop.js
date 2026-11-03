@@ -175,13 +175,21 @@ export class Laptop {
     ctx.fillStyle = '#d8d2c6';
     ctx.fillRect(40, 176, w - 80, 2);
 
-    const fontSize = 46;
-    ctx.font = `500 ${fontSize}px ${MONO}`;
-    const cw = ctx.measureText('M').width;
-    const maxChars = Math.floor((w - 80) / cw);
-    const lines = wrapMono(v.prompt, maxChars);
-    const lineH = fontSize * 1.55;
-    const top = 250;
+    // As large as the email allows, so it reads from the seat (~0.7 m away) in a headset.
+    const top0 = 196;
+    const bottom = h - 112;
+    let fontSize = 96;
+    let cw;
+    let lines;
+    let lineH;
+    for (; fontSize > 44; fontSize -= 4) {
+      ctx.font = `700 ${fontSize}px ${MONO}`;
+      cw = ctx.measureText('M').width;
+      lines = wrapMono(v.prompt, Math.floor((w - 80) / cw));
+      lineH = fontSize * 1.32;
+      if (lines.length * lineH <= bottom - top0) break;
+    }
+    const top = top0 + fontSize * 0.95;
     const blink = Math.floor(performance.now() / 400) % 2 === 0;
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li];
@@ -193,7 +201,7 @@ export class Laptop {
         if (i < v.typed.length) {
           const got = v.typed[i];
           if (got.toLowerCase() === want.toLowerCase()) {
-            ctx.fillStyle = '#1d6b3a';
+            ctx.fillStyle = '#5fa877';
             ctx.fillText(want, x, y);
           } else {
             ctx.fillStyle = 'rgba(220, 38, 38, 0.18)';
@@ -202,12 +210,13 @@ export class Laptop {
             ctx.fillText(got === ' ' ? '_' : got, x, y);
           }
         } else {
-          ctx.fillStyle = '#a8a397';
+          // still to type: dark ink (the next letter in orange)
+          ctx.fillStyle = i === v.typed.length ? '#e8590c' : '#2a2d35';
           ctx.fillText(want, x, y);
         }
         if (i === v.typed.length && blink) {
           ctx.fillStyle = '#e8590c';
-          ctx.fillRect(x - 2, y - fontSize * 0.85, 4, fontSize * 1.05);
+          ctx.fillRect(x, y + fontSize * 0.12, cw, 6);
         }
       }
     }

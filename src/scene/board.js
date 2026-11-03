@@ -8,10 +8,11 @@ export class StatusBoard {
     const dark = std(0x24262c, { roughness: 0.4, metalness: 0.3 });
     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.12), dark);
     foot.position.y = 0.006;
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.2, 0.02), dark);
-    neck.position.set(0, 0.11, -0.03);
+    // a short stand, so the (scaled-up) screen stays below the partition and Gary stays visible
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.02), dark);
+    neck.position.set(0, 0.07, -0.03);
     const frame = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.33, 0.025), dark);
-    frame.position.set(0, 0.32, -0.02);
+    frame.position.set(0, 0.25, -0.02);
     for (const m of [foot, neck, frame]) {
       m.castShadow = true;
       this.group.add(m);
@@ -21,7 +22,7 @@ export class StatusBoard {
       new THREE.PlaneGeometry(0.5, 0.3125),
       new THREE.MeshBasicMaterial({ map: this.screen.tex, toneMapped: false })
     );
-    mesh.position.set(0, 0.32, -0.007);
+    mesh.position.set(0, 0.25, -0.007);
     this.group.add(mesh);
   }
 

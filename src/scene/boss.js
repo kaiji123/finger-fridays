@@ -473,6 +473,8 @@ export class Boss {
   }
 
   update(dt, frozen = false) {
+    // off-stage he is hidden: in a small real room his starting point can be in plain view
+    this.group.visible = this.state !== 'off';
     // keep the bubble to Gary's right as seen by the player, whichever way he faces
     const ry = this.group.rotation.y;
     this.bubbleSprite.position.x = Math.cos(ry) * BUBBLE_X;
