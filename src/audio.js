@@ -1,4 +1,5 @@
-// Synthesised sound effects and a text-to-speech boss voice. No audio files needed.
+// Synthesised sound effects, and Gary's voice: recorded ElevenLabs clips (public/voice,
+// made by `npm run voice`), with browser text-to-speech as the fallback.
 
 let ctx = null;
 let master = null;
@@ -19,6 +20,7 @@ export function initAudio() {
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   startAmbience();
+  preloadVoice();
 }
 
 function env(node, gain, attack, dur) {
@@ -119,7 +121,86 @@ if ('speechSynthesis' in window) {
   speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
 }
 
-export function say(text, { angry = false } = {}) {
+// ---- Gary's recorded voice ----
+
+const VOICE_BASE = `${import.meta.env.BASE_URL}voice/`;
+let clips = null; // [{ text, file, match }]
+const decoded = new Map(); // file -> Promise<AudioBuffer>
+let speaking = null;
+
+const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+fetch(`${VOICE_BASE}manifest.json`)
+  .then((r) => (r.ok ? r.json() : null))
+  .then((m) => {
+    if (!m) return;
+    // lines with {word}/{phrase} match whatever got filled in at runtime
+    clips = Object.entries(m.lines).map(([text, file]) => ({
+      text,
+      file,
+      match: text.includes('{') ? new RegExp(`^${text.split(/\{\w+\}/).map(escapeRe).join('[\\s\\S]*?')}$`) : null,
+    }));
+    preloadVoice();
+  })
+  .catch(() => {});
+
+function clipFor(text) {
+  if (!clips) return null;
+  const hit = clips.find((c) => (c.match ? c.match.test(text) : c.text === text));
+  return hit ? hit.file : null;
+}
+
+function loadClip(file) {
+  if (!decoded.has(file)) {
+    const p = fetch(VOICE_BASE + file)
+      .then((r) => r.arrayBuffer())
+      .then((b) => ctx.decodeAudioData(b));
+    p.catch(() => decoded.delete(file));
+    decoded.set(file, p);
+  }
+  return decoded.get(file);
+}
+
+// Decode every clip once audio is unlocked, so lines play instantly in the headset.
+function preloadVoice() {
+  if (!ctx || !clips) return;
+  for (const c of clips) loadClip(c.file).catch(() => {});
+}
+
+function stopSpeaking() {
+  try {
+    speaking?.src?.stop();
+  } catch {
+    // already finished
+  }
+  speaking = null;
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+}
+
+export function say(text, opts = {}) {
+  const file = clipFor(text);
+  if (!file || !ctx) {
+    speakSynth(text, opts);
+    return;
+  }
+  stopSpeaking();
+  const token = {};
+  speaking = token;
+  loadClip(file)
+    .then((buf) => {
+      if (speaking !== token) return; // a newer line already started
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const g = ctx.createGain();
+      g.gain.value = 1.4;
+      src.connect(g).connect(master);
+      src.start();
+      token.src = src;
+    })
+    .catch(() => speakSynth(text, opts));
+}
+
+// Fallback: the browser's built-in speech.
+function speakSynth(text, { angry = false } = {}) {
   if (!('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();

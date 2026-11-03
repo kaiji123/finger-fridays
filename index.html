@@ -4,39 +4,42 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Finger Fridays</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1d22; font-family: 'Space Grotesk', system-ui, sans-serif; }
     canvas { display: block; }
-    #hud {
-      position: fixed; left: 16px; bottom: 16px; max-width: 380px;
-      color: #f4efe6; background: rgba(20, 22, 28, 0.72); backdrop-filter: blur(6px);
-      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
-      padding: 12px 14px; font-size: 13px; line-height: 1.5; pointer-events: auto;
+    #scene-container { position: fixed; inset: 0; }
+    #landing {
+      position: fixed; inset: 0; z-index: 1; display: grid; place-items: end center; padding: 16px 16px 28px;
+      background: linear-gradient(to top, rgba(18, 20, 26, 0.92), rgba(18, 20, 26, 0.6) 30%, rgba(18, 20, 26, 0) 60%);
     }
-    #hud b { color: #ffb36b; }
-    #hud .title { font-weight: 700; font-size: 15px; letter-spacing: 0.02em; margin-bottom: 4px; }
-    #hud kbd { font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #2c2f38; border: 1px solid #444a57; border-radius: 4px; padding: 0 5px; }
-    #hud button { all: unset; cursor: pointer; color: #9aa3b5; font-size: 11px; margin-top: 4px; text-decoration: underline; }
-    #hud.min .body { display: none; }
+    #landing .card { max-width: 520px; text-align: center; color: #f4efe6; }
+    #landing h1 { margin: 0; font-size: clamp(34px, 7vw, 56px); letter-spacing: -0.01em; }
+    #landing p { margin: 6px 0 18px; font-size: 16px; line-height: 1.45; color: #e2dbcf; }
+    #landing .buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    #landing button {
+      font: 700 15px 'Space Grotesk', system-ui, sans-serif; letter-spacing: 0.04em; cursor: pointer;
+      color: #fff; background: #dc2626; border: 0; border-radius: 999px; padding: 14px 24px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    }
+    #landing button.alt { background: #2b2e36; border: 1px solid #ffb36b; color: #ffb36b; }
+    #landing [hidden] { display: none; }
+    #landing #noXR { margin: 0; font-size: 14px; color: #ffb36b; }
     #loading { position: fixed; inset: 0; display: grid; place-items: center; color: #f4efe6; font-size: 18px; }
   </style>
 </head>
 <body>
+  <div id="scene-container"></div>
   <div id="loading">Clocking in…</div>
-  <div id="hud">
-    <div class="title">Finger Fridays: desktop simulator</div>
-    <div class="body">
-      <b>Click</b> keys with your cursor finger, or type on your real keyboard.<br />
-      <kbd>Enter</kbd> or click the red button to start, next shift, pause<br />
-      <kbd>Tab</kbd> or click the laptop to slam it shut or open it<br />
-      <kbd>←↑→↓</kbd> or right-drag to look around · <kbd>Esc</kbd> pause<br />
-      In a headset: tap <b>ENTER VR</b>. Fingertips press keys, slam the laptop with a fast palm-down swipe, flip your palm up to reopen it.<br />
-      No headset? Add <kbd>?emulate</kbd> to the URL for a Quest emulator.
+  <div id="landing">
+    <div class="card">
+      <h1>Finger Fridays</h1>
+      <p>It's 4:57 PM on a Friday. Poke out the email with your fingertips and slam the laptop shut when Gary walks past.</p>
+      <div class="buttons">
+        <button id="enterVR" hidden>ENTER VR OFFICE</button>
+        <button id="enterMR" class="alt" hidden>MR: YOUR REAL DESK</button>
+      </div>
+      <p id="noXR" hidden>This game needs a VR headset. Open this page in the Meta Quest browser.</p>
     </div>
-    <button id="hudToggle">hide help</button>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

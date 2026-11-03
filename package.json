@@ -5,15 +5,26 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:managed": "iwsdk dev restart --open --foreground",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "voice": "node scripts/voice.mjs"
   },
   "devDependencies": {
-    "vite": "^6.0.0"
+    "@iwsdk/cli": "1.0.1",
+    "@iwsdk/vite-plugin-dev": "1.0.1",
+    "vite": "^7.1.4"
   },
   "dependencies": {
-    "@iwer/devui": "^2.7.0",
-    "iwer": "^2.7.0",
-    "three": "^0.180.0"
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
+    "@iwsdk/core": "1.0.1",
+    "three": "npm:super-three@0.181.0"
+  },
+  "overrides": {
+    "three": "npm:super-three@0.181.0"
+  },
+  "engines": {
+    "node": ">=20.19.0 <21.0.0-0 || >=22.12.0 <23.0.0-0 || >=24.0.0"
   }
 }

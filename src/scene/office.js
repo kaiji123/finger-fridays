@@ -1,9 +1,9 @@
-import * as THREE from 'three';
-import { canvasTexture, rrect, SANS, MONO, std, box } from '../util.js';
+import * as THREE from '@iwsdk/core';
+import { canvasTexture, rrect, SANS, MONO, std, box, mergeStatic } from '../util.js';
 
 // The office, in "office space": the player's chair is at the origin, facing -z.
-// Desk top is at y = 0.74. Everything here lives in one group so it can be
-// re-centred around the player's head in VR.
+// Desk top is at y = 0.74. Everything lives in one group so it can be re-centred
+// around the player's head in VR, or moved onto the player's real desk in MR.
 export const DESK_Y = 0.74;
 
 function skylineTexture() {
@@ -54,12 +54,16 @@ function stickyNote(text, color) {
   return new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.1), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
 }
 
+// shared by every chair and neighbouring desk so the merged shell needs fewer draw calls
+let shared;
+const mats = () => (shared ??= { metal: std(0x333333), screen: std(0x24262c), seat: std(0x3d4a63) });
+
 function chair(mat) {
   const g = new THREE.Group();
   g.add(box(0.48, 0.07, 0.46, mat, { y: 0.48 }));
   g.add(box(0.46, 0.55, 0.06, mat, { y: 0.8, z: 0.22 }));
-  g.add(box(0.05, 0.42, 0.05, std(0x333333), { y: 0.24 }));
-  g.add(box(0.5, 0.03, 0.5, std(0x333333), { y: 0.03 }));
+  g.add(box(0.05, 0.42, 0.05, mats().metal, { y: 0.24 }));
+  g.add(box(0.5, 0.03, 0.5, mats().metal, { y: 0.03 }));
   return g;
 }
 
@@ -73,8 +77,8 @@ function cubicle(fabric, trim, deskMat) {
     g.add(box(0.07, 0.03, 1.6, trim, { x, y: 1.26, z: -0.35 }));
   }
   g.add(box(1.6, 0.04, 0.8, deskMat, { y: DESK_Y - 0.02, z: -0.65 }));
-  g.add(box(0.5, 0.32, 0.03, std(0x24262c), { y: DESK_Y + 0.3, z: -0.85 }));
-  const c = chair(std(0x3d4a63));
+  g.add(box(0.5, 0.32, 0.03, mats().screen, { y: DESK_Y + 0.3, z: -0.85 }));
+  const c = chair(mats().seat);
   c.position.z = 0.15;
   c.rotation.y = (Math.random() - 0.5) * 0.8;
   g.add(c);
@@ -83,6 +87,9 @@ function cubicle(fabric, trim, deskMat) {
 
 export function buildOffice() {
   const office = new THREE.Group();
+  // The room around the desk. Hidden in mixed reality, where the player's real room replaces it.
+  const shell = new THREE.Group();
+  office.add(shell);
 
   const fabric = std(0x8796ad, { roughness: 1 });
   const trim = std(0xb8bcc4, { roughness: 0.5, metalness: 0.3 });
@@ -104,40 +111,40 @@ export function buildOffice() {
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ map: carpet.tex, roughness: 1 }));
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
-  office.add(floor);
+  shell.add(floor);
 
   // ceiling + light panels
   const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), std(0xf1efe9));
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = 2.8;
-  office.add(ceiling);
+  shell.add(ceiling);
   const panelMat = new THREE.MeshBasicMaterial({ color: 0xfff8ec });
   for (let x = -6; x <= 6; x += 3) {
     for (let z = -6; z <= 3; z += 3) {
       const p = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.6), panelMat);
       p.rotation.x = Math.PI / 2;
       p.position.set(x, 2.79, z);
-      office.add(p);
+      shell.add(p);
     }
   }
 
   // far wall with windows (sunset skyline), side walls
   const farZ = -7;
-  office.add(box(30, 2.8, 0.2, wallMat, { y: 1.4, z: farZ - 0.1, shadow: false }));
+  shell.add(box(30, 2.8, 0.2, wallMat, { y: 1.4, z: farZ - 0.1, shadow: false }));
   const skyline = new THREE.Mesh(new THREE.PlaneGeometry(14, 1.7), new THREE.MeshBasicMaterial({ map: skylineTexture(), toneMapped: false }));
   skyline.position.set(0, 1.55, farZ + 0.01);
-  office.add(skyline);
-  for (let x = -7; x <= 7; x += 1.75) office.add(box(0.08, 1.8, 0.06, trim, { x, y: 1.55, z: farZ + 0.03, shadow: false }));
-  office.add(box(14.1, 0.08, 0.12, trim, { y: 0.66, z: farZ + 0.05, shadow: false }));
-  office.add(box(14.1, 0.08, 0.06, trim, { y: 2.44, z: farZ + 0.03, shadow: false }));
-  for (const x of [-9, 9]) office.add(box(0.2, 2.8, 20, wallMat, { x, y: 1.4, z: -1, shadow: false }));
-  office.add(box(30, 2.8, 0.2, wallMat, { y: 1.4, z: 4.5, shadow: false }));
+  shell.add(skyline);
+  for (let x = -7; x <= 7; x += 1.75) shell.add(box(0.08, 1.8, 0.06, trim, { x, y: 1.55, z: farZ + 0.03, shadow: false }));
+  shell.add(box(14.1, 0.08, 0.12, trim, { y: 0.66, z: farZ + 0.05, shadow: false }));
+  shell.add(box(14.1, 0.08, 0.06, trim, { y: 2.44, z: farZ + 0.03, shadow: false }));
+  for (const x of [-9, 9]) shell.add(box(0.2, 2.8, 20, wallMat, { x, y: 1.4, z: -1, shadow: false }));
+  shell.add(box(30, 2.8, 0.2, wallMat, { y: 1.4, z: 4.5, shadow: false }));
 
   // wall clock above the windows
   const clock = canvasTexture(512, 512);
   const clockMesh = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48), new THREE.MeshBasicMaterial({ map: clock.tex }));
   clockMesh.position.set(0, 2.55, farZ + 0.02);
-  office.add(clockMesh);
+  shell.add(clockMesh);
   const drawClock = (minutesPastFour) => {
     const { ctx } = clock;
     ctx.fillStyle = '#fbfaf6';
@@ -169,20 +176,20 @@ export function buildOffice() {
   drawClock(57);
 
   // columns
-  for (const x of [-7, 7]) office.add(box(0.5, 2.8, 0.5, wallMat, { x, y: 1.4, z: -1.0 }));
+  for (const x of [-7, 7]) shell.add(box(0.5, 2.8, 0.5, wallMat, { x, y: 1.4, z: -1.0 }));
 
   // our cubicle
-  office.add(box(2.2, 1.25, 0.05, fabric, { y: 0.625, z: -1.15 }));
-  office.add(box(2.2, 0.03, 0.07, trim, { y: 1.26, z: -1.15 }));
+  shell.add(box(2.2, 1.25, 0.05, fabric, { y: 0.625, z: -1.15 }));
+  shell.add(box(2.2, 0.03, 0.07, trim, { y: 1.26, z: -1.15 }));
   for (const x of [-1.1, 1.1]) {
-    office.add(box(0.05, 1.25, 1.75, fabric, { x, y: 0.625, z: -0.28 }));
-    office.add(box(0.07, 0.03, 1.75, trim, { x, y: 1.26, z: -0.28 }));
+    shell.add(box(0.05, 1.25, 1.75, fabric, { x, y: 0.625, z: -0.28 }));
+    shell.add(box(0.07, 0.03, 1.75, trim, { x, y: 1.26, z: -0.28 }));
   }
   const desk = box(1.6, 0.04, 0.8, deskMat, { y: DESK_Y - 0.02, z: -0.65 });
-  office.add(desk);
-  office.add(box(0.03, DESK_Y - 0.04, 0.7, trim, { x: -0.78, y: (DESK_Y - 0.04) / 2, z: -0.65 }));
-  office.add(box(0.03, DESK_Y - 0.04, 0.7, trim, { x: 0.78, y: (DESK_Y - 0.04) / 2, z: -0.65 }));
-  office.add(box(1.5, 0.4, 0.02, trim, { y: 0.45, z: -1.0 }));
+  shell.add(desk);
+  shell.add(box(0.03, DESK_Y - 0.04, 0.7, trim, { x: -0.78, y: (DESK_Y - 0.04) / 2, z: -0.65 }));
+  shell.add(box(0.03, DESK_Y - 0.04, 0.7, trim, { x: 0.78, y: (DESK_Y - 0.04) / 2, z: -0.65 }));
+  shell.add(box(1.5, 0.4, 0.02, trim, { y: 0.45, z: -1.0 }));
 
   // sticky notes on the front partition
   const notes = [
@@ -195,7 +202,7 @@ export function buildOffice() {
     const n = stickyNote(t, c);
     n.position.set(x, y, -1.12);
     n.rotation.z = r;
-    office.add(n);
+    shell.add(n);
   }
   // "Employee of the month" frame on the side partition
   const eotm = canvasTexture(256, 320);
@@ -215,7 +222,7 @@ export function buildOffice() {
   const eotmMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.25), new THREE.MeshStandardMaterial({ map: eotm.tex }));
   eotmMesh.position.set(1.07, 1.0, -0.6);
   eotmMesh.rotation.y = -Math.PI / 2;
-  office.add(eotmMesh);
+  shell.add(eotmMesh);
 
   // props: plant, desk lamp, pen cup
   const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.055, 0.12, 16), std(0xc4693d));
@@ -288,7 +295,7 @@ export function buildOffice() {
   for (const [x, z] of spots) {
     const c = cubicle(fabric, trim, deskMat);
     c.position.set(x, 0, z);
-    office.add(c);
+    shell.add(c);
   }
   // water cooler
   const cooler = new THREE.Group();
@@ -297,7 +304,18 @@ export function buildOffice() {
   jug.position.y = 1.1;
   cooler.add(jug);
   cooler.position.set(-3.8, 0, -1.4);
-  office.add(cooler);
+  shell.add(cooler);
 
-  return { office, desk, deskMug, button, buttonDome: dome, buttonMat: btnMat, drawClock };
+  // In mixed reality the real desk shows through; this invisible plane still catches
+  // the props' shadows so they sit on it instead of floating.
+  const shadowCatcher = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.8), new THREE.ShadowMaterial({ opacity: 0.28 }));
+  shadowCatcher.rotation.x = -Math.PI / 2;
+  shadowCatcher.position.set(0, DESK_Y + 0.001, -0.6);
+  shadowCatcher.receiveShadow = true;
+  shadowCatcher.visible = false;
+  office.add(shadowCatcher);
+
+  mergeStatic(shell);
+
+  return { office, shell, shadowCatcher, desk, deskMug, button, buttonDome: dome, buttonMat: btnMat, drawClock };
 }

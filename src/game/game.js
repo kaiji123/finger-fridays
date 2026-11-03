@@ -1,13 +1,13 @@
-import * as THREE from 'three';
+import * as THREE from '@iwsdk/core';
 import { RANKS, CURSES, LINES, pick, fill } from './data.js';
+import { DESK_Y } from '../scene/office.js';
 import { sfx, say } from '../audio.js';
 import { rand, clamp } from '../util.js';
 
 const SAVE_KEY = 'finger-fridays-save-v1';
-const LEFT_HAND_SLOTS = 'qwertasdfgzxcvb';
 
 function loadSave() {
-  const fallback = { rank: 0, streak: 0, best: 0, shifts: 0 };
+  const fallback = { rank: 0, streak: 0, best: 0, shifts: 0, tutorialDone: false };
   try {
     return { ...fallback, ...JSON.parse(localStorage.getItem(SAVE_KEY) || '{}') };
   } catch {
@@ -24,16 +24,16 @@ function storeSave(save) {
 }
 
 export class Game {
-  constructor({ keyboard, laptop, board, boss, office, isXR, onShake }) {
+  constructor({ keyboard, laptop, board, boss, office, hints }) {
+    this.hints = hints;
+    this.tut = null;
     this.keyboard = keyboard;
     this.laptop = laptop;
     this.board = board;
     this.boss = boss;
     this.office = office;
-    this.isXR = isXR;
-    this.onShake = onShake;
     this.save = loadSave();
-    this.state = 'menu'; // menu | countdown | playing | paused | results
+    this.state = 'menu'; // menu | tutorial | countdown | playing | paused | results
     this.curses = new Set();
     this.prompt = '';
     this.typed = '';
@@ -61,7 +61,9 @@ export class Game {
 
   pressButton() {
     sfx.button();
-    if (this.state === 'menu' || this.state === 'results') this.startShift();
+    if (this.state === 'menu' && !this.save.tutorialDone) this.startTutorial();
+    else if (this.state === 'tutorial') this.finishTutorial();
+    else if (this.state === 'menu' || this.state === 'results') this.startShift();
     else if (this.state === 'playing') this.state = 'paused';
     else if (this.state === 'paused') this.state = 'playing';
     this.redraw();
@@ -74,25 +76,28 @@ export class Game {
     }
   }
 
-  toggleLid() {
-    this.setLid(!this.laptop.isOpen);
-  }
-
   setLid(open) {
     if (this.state === 'results' || this.state === 'countdown') return;
     if (this.time - this.lastLidToggle < 0.5) return;
     if (!this.laptop.setOpen(open)) return;
     this.lastLidToggle = this.time;
     if (open) sfx.open();
-    else {
-      sfx.slam();
-      this.onShake(0.6);
-    }
+    else sfx.slam();
+    if (this.state === 'tutorial') this.tutorialLid(open);
     this.redraw();
   }
 
-  // A 3D key was poked (by a fingertip, the mouse finger, or a physical key).
+  // A 3D key was poked (by a fingertip, a mitten, the coffee mug or a controller stylus).
   keyPressed(key) {
+    // modifier keys are scenery: they click but do not type
+    if (key.dead) {
+      sfx.key();
+      return;
+    }
+    if (this.state === 'tutorial') {
+      this.tutorialKey(key);
+      return;
+    }
     if (this.state !== 'playing') {
       sfx.key();
       return;
@@ -125,27 +130,6 @@ export class Game {
     this.redraw();
   }
 
-  // Physical keyboard (desktop). Maps through the 3D layout so curses apply.
-  physicalKey(ch) {
-    let key = this.keyboard.keyForSlot(ch);
-    if (!key) return;
-    if (this.state === 'playing' && this.curses.has('coffee') && LEFT_HAND_SLOTS.includes(ch)) {
-      sfx.dead();
-      this.flashMessage('Left hand is holding coffee! Click those keys.');
-      return;
-    }
-    // fat fingers sometimes hit the neighbouring key
-    const fat = this.curses.has('mittens') ? 0.3 : this.curses.has('sausage') ? 0.12 : 0;
-    if (this.state === 'playing' && Math.random() < fat) {
-      const near = this.keyboard.keys
-        .filter((k) => k !== key && Math.abs(k.z - key.z) < 0.01 && Math.abs(k.x - key.x) < 0.05)
-        .concat([key]);
-      key = pick(near);
-    }
-    this.keyboard.tap(key);
-    this.keyPressed(key);
-  }
-
   wordFinished(endIndex) {
     // find the word that just ended and compare it with the prompt
     const start = this.prompt.lastIndexOf(' ', endIndex - 1) + 1;
@@ -164,10 +148,142 @@ export class Game {
     }
   }
 
+  // ---- first-shift training ----
+  // Teaches the three hand moves by doing them, one at a time, with Gary talking you
+  // through it: poke the button, poke two glowing keys, slam the lid, flip it open.
+
+  // The player is at the desk (page loaded, VR desk calibrated, or MR desk placed).
+  ready() {
+    if (this.state === 'menu' && !this.save.tutorialDone) {
+      this.hints.pointAt(this.hintTarget('button'));
+      if (!this.boss.busy) this.boss.comeForVerdict();
+    }
+    this.redraw();
+  }
+
+  hintTarget(what, key) {
+    if (what === 'button') return (v) => this.office.button.localToWorld(v.set(0, 0.06, 0));
+    if (what === 'key') return (v) => key.mesh.localToWorld(v.set(0, 0.02, 0));
+    if (what === 'lidOpen') return (v) => this.laptop.group.localToWorld(v.set(0, 0.36, -0.2));
+    return (v) => this.laptop.group.localToWorld(v.set(0, 0.06, -0.05));
+  }
+
+  startTutorial() {
+    this.state = 'tutorial';
+    this.tut = { step: 'type', doneT: 0, lastWrong: -9 };
+    this.prompt = 'hi';
+    this.typed = '';
+    this.typos = 0;
+    this.anger = 10;
+    this.curses = new Set();
+    this.keyboard.reset();
+    this.laptop.setOpen(true);
+    if (!this.boss.busy) this.boss.comeForVerdict();
+    this.tutSay(LINES.tutorial.type);
+    this.tutorialHints();
+  }
+
+  tutSay(line) {
+    this.boss.setAnger(20);
+    this.boss.say(line, 4);
+    say(line);
+  }
+
+  tutorialHints() {
+    const step = this.tut?.step;
+    const officeMatrix = () => this.office.office.matrixWorld;
+    this.hints.clear();
+    if (step === 'type') {
+      const key = this.keyboard.keyForSlot(this.prompt[this.typed.length]);
+      this.keyboard.setGuide(key);
+      this.hints.pointAt(this.hintTarget('key', key));
+      return;
+    }
+    this.keyboard.setGuide(null);
+    if (step === 'slam') {
+      this.hints.pointAt(this.hintTarget('lidOpen'));
+      this.hints.showGesture('slam', officeMatrix, new THREE.Vector3(0.05, DESK_Y + 0.26, -0.84));
+    } else if (step === 'open') {
+      this.hints.pointAt(this.hintTarget('lidClosed'));
+      this.hints.showGesture('flip', officeMatrix, new THREE.Vector3(0.05, DESK_Y + 0.09, -0.66));
+    }
+  }
+
+  tutorialKey(key) {
+    const t = this.tut;
+    sfx.key();
+    if (t.step !== 'type' || key.char === '\b') return;
+    if (!this.laptop.isOpen) {
+      this.flashMessage('Open the laptop first.');
+      return;
+    }
+    const want = this.prompt[this.typed.length];
+    if (key.char === want) {
+      this.typed += key.char;
+      this.keyboard.flash(key, '#b7ebc6');
+      if (this.typed === this.prompt) {
+        t.step = 'slam';
+        this.tutSay(LINES.tutorial.slam);
+        sfx.alarm();
+      }
+    } else {
+      this.keyboard.flash(key, '#ffb4ab');
+      sfx.wrong();
+      if (this.time - t.lastWrong > 4) {
+        t.lastWrong = this.time;
+        this.tutSay(LINES.tutorial.wrongKey);
+      }
+    }
+    this.tutorialHints();
+    this.redraw();
+  }
+
+  tutorialLid(open) {
+    const t = this.tut;
+    if (t.step === 'slam' && !open) {
+      t.step = 'open';
+      this.tutSay(LINES.tutorial.open);
+    } else if (t.step === 'open' && open) {
+      t.step = 'done';
+      t.doneT = 3;
+      this.tutSay(LINES.tutorial.done);
+      sfx.promoted();
+      this.save.tutorialDone = true;
+      storeSave(this.save);
+    }
+    this.tutorialHints();
+  }
+
+  // Done (or skipped with the red button): straight into the first real shift.
+  finishTutorial() {
+    this.save.tutorialDone = true;
+    storeSave(this.save);
+    this.tut = null;
+    this.hints.clear();
+    this.keyboard.setGuide(null);
+    this.startShift();
+  }
+
+  tutorialView() {
+    const step = this.tut.step;
+    const v = { mode: 'tutorial', steps: 4 };
+    if (step === 'type') {
+      Object.assign(v, { step: 2, instruction: `Type: ${this.prompt.toUpperCase()}`, instruction2: 'Poke the glowing keys.' });
+    } else if (step === 'slam') {
+      Object.assign(v, { step: 3, instruction: 'SLAM THE LAPTOP!', instruction2: 'Palm down, fast, onto the lid.' });
+    } else if (step === 'open') {
+      Object.assign(v, { step: 4, instruction: 'Open it again', instruction2: 'Flip your palm up over the laptop.' });
+    } else {
+      Object.assign(v, { step: 4, instruction: "You're hired!", instruction2: 'Real shift starting…' });
+    }
+    return v;
+  }
+
   // ---- shift lifecycle ----
 
   startShift() {
     const rank = this.rank;
+    this.hints.clear();
     this.prompt = pick(rank.prompts);
     this.typed = '';
     this.typos = 0;
@@ -262,7 +378,6 @@ export class Game {
     if (this.boss.busy) this.boss.say(line, 3);
     this.flashMessage(`GARY: "${line}"`);
     say(line, { angry });
-    this.onShake(angry ? 0.5 : 0.2);
     if (this.curses.has('reshuffle')) {
       this.keyboard.reshuffle();
       sfx.shuffle();
@@ -282,6 +397,8 @@ export class Game {
       }
     } else if (type === 'gone' && (this.state === 'playing' || this.state === 'paused')) {
       this.nextBossAt = this.elapsed + rand(...this.rank.bossGap);
+    } else if (type === 'arrived' && this.state === 'menu' && !this.save.tutorialDone) {
+      this.tutSay(LINES.tutorial.greet);
     } else if (type === 'arrived' && this.state === 'results') {
       this.boss.setAnger(this.result.verdict === 'FIRED' ? 100 : this.result.verdict === 'WARNING' ? 60 : 10);
       this.boss.say(this.result.line, 6);
@@ -313,6 +430,12 @@ export class Game {
     const paused = this.state === 'paused';
     this.boss.setAnger(this.state === 'results' ? this.boss.anger : this.anger);
     this.boss.update(dt, paused);
+
+    if (this.state === 'tutorial' && this.tut.step === 'done') {
+      this.tut.doneT -= dt;
+      if (this.tut.doneT <= 0) this.finishTutorial();
+    }
+    this.hints.update(dt);
 
     if (this.state === 'countdown') {
       this.countdown -= dt;
@@ -354,19 +477,23 @@ export class Game {
   }
 
   redraw() {
-    const xr = this.isXR();
     const minutes = (this.typed.length / 5) / Math.max(this.elapsed || 0, 1) * 60;
     const curseNames = [...this.curses].map((c) => CURSES[c].name);
     let laptopView;
     if (this.state === 'menu') {
       laptopView = {
         mode: 'menu', rank: this.rank.name, best: this.save.best, streak: this.save.streak,
-        hint: xr ? 'Poke the button with your finger.' : 'Click the button, or press Enter.',
+        hint: 'Poke the button with your finger.',
       };
     } else if (this.state === 'countdown') {
-      laptopView = { mode: 'countdown', count: Math.max(1, Math.ceil(this.countdown)), curseLine: `Today's curse: ${curseNames.join(' + ')}` };
+      laptopView = {
+        mode: 'countdown', count: Math.max(1, Math.ceil(this.countdown)),
+        curseLine: curseNames.length ? `Today's curse: ${curseNames.join(' + ')}` : 'No curses today. Enjoy it while it lasts.',
+      };
     } else if (this.state === 'results') {
       laptopView = { mode: 'results', ...this.result };
+    } else if (this.state === 'tutorial') {
+      laptopView = { mode: 'email', prompt: this.prompt, typed: this.typed, typos: 0, wpm: 0, paused: false };
     } else {
       laptopView = {
         mode: 'email', prompt: this.prompt, typed: this.typed, typos: this.typos,
@@ -376,7 +503,9 @@ export class Game {
     this.laptop.draw(laptopView);
 
     const alert = (this.state === 'playing' || this.state === 'paused') && (this.boss.state === 'approach' || this.boss.state === 'inspect');
-    this.board.draw({
+    const next = RANKS[this.save.rank + 1];
+    const nextCurse = next ? next.curses.filter((c) => !this.rank.curses.includes(c)).map((c) => CURSES[c].name).join(' + ') : '';
+    const view = {
       mode: this.state,
       rank: this.rank.name,
       shift: this.save.shifts,
@@ -386,25 +515,17 @@ export class Game {
       mood: this.mood,
       curses: curseNames,
       alert: alert && this.laptop.isOpen,
-      alertHint: xr ? 'SLAM THE LAPTOP SHUT! (palm down, fast)' : 'SLAM THE LAPTOP! (Tab or click it)',
+      alertHint: 'SLAM THE LAPTOP SHUT! (palm down, fast)',
       lidClosed: !this.laptop.isOpen,
-      reopenHint: xr ? 'Flip your palm up over the laptop to reopen it.' : 'Press Tab or click the laptop to reopen it.',
+      reopenHint: 'Flip your palm up over the laptop to reopen it.',
       message: this.message,
-      howTo: xr
-        ? [
-            'Poke the red button to clock in.',
-            'Copy the email with your fingertips.',
-            'Gary walks by: SLAM the laptop (palm down).',
-            'Flip your palm up over it to reopen.',
-            'Promoted, warned, or FIRED. Climb to CEO.',
-          ]
-        : [
-            'Click the red button (or Enter) to clock in.',
-            'Click keys or type to copy the email.',
-            'Gary walks by: SLAM the laptop (Tab).',
-            'Press Tab again to reopen it.',
-            'Promoted, warned, or FIRED. Climb to CEO.',
-          ],
-    });
+      ladder: RANKS.map((r) => r.name).reverse(),
+      rankIndex: this.save.rank,
+      best: this.save.best,
+      streak: this.save.streak,
+      nextCurse,
+    };
+    if (this.state === 'tutorial') Object.assign(view, this.tutorialView(), { message: '' });
+    this.board.draw(view);
   }
 }

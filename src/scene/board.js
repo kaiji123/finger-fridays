@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from '@iwsdk/core';
 import { canvasTexture, rrect, MONO, SANS, std } from '../util.js';
 
 // The second monitor on the desk: timer, boss mood, curses, alerts.
@@ -26,6 +26,11 @@ export class StatusBoard {
   }
 
   draw(v) {
+    // Uploading a 1024px canvas is costly on Quest, so only redraw when something changed.
+    const blink = v.alert ? Math.floor(performance.now() / 220) % 2 : 0;
+    const sig = JSON.stringify({ ...v, timeLeft: Math.ceil(v.timeLeft), anger: Math.round(v.anger), blink });
+    if (sig === this.lastSig) return;
+    this.lastSig = sig;
     const { ctx, canvas, tex } = this.screen;
     const w = canvas.width;
     const h = canvas.height;
@@ -44,7 +49,9 @@ export class StatusBoard {
     ctx.fillText(v.clock, w - 40, 62);
 
     if (v.mode === 'menu' || v.mode === 'results') {
-      this.drawHowTo(ctx, w, h, v);
+      this.drawLadder(ctx, w, h, v);
+    } else if (v.mode === 'tutorial') {
+      this.drawTutorial(ctx, w, h, v);
     } else {
       // timer
       ctx.textAlign = 'left';
@@ -79,6 +86,10 @@ export class StatusBoard {
       ctx.fillText('ACTIVE CURSES', 40, 340);
       let cx = 40;
       ctx.font = `700 28px ${SANS}`;
+      if (!v.curses.length) {
+        ctx.fillStyle = '#5fd18b';
+        ctx.fillText('None yet. Enjoy it.', 40, 395);
+      }
       for (const c of v.curses) {
         const tw = ctx.measureText(c).width + 36;
         ctx.fillStyle = '#3a2a1e';
@@ -121,17 +132,74 @@ export class StatusBoard {
     tex.needsUpdate = true;
   }
 
-  drawHowTo(ctx, w, h, v) {
+  // Career ladder: where you are, how far to CEO, and your records.
+  drawLadder(ctx, w, h, v) {
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#f4efe6';
-    ctx.font = `700 46px ${SANS}`;
-    ctx.fillText('HOW TO SURVIVE FRIDAY', 40, 140);
-    ctx.font = `500 30px ${SANS}`;
-    v.howTo.forEach((line, i) => {
-      ctx.fillStyle = '#ffb36b';
-      ctx.fillText(`${i + 1}`, 44, 205 + i * 58);
-      ctx.fillStyle = '#d7d2c8';
-      ctx.fillText(line, 84, 205 + i * 58);
+    ctx.fillStyle = '#7d8597';
+    ctx.font = `500 24px ${SANS}`;
+    ctx.fillText('CAREER LADDER', 40, 125);
+    const n = v.ladder.length;
+    const top = 150;
+    const rowH = 52;
+    v.ladder.forEach((name, i) => {
+      const rank = n - 1 - i; // CEO at the top
+      const y = top + i * rowH;
+      const here = rank === v.rankIndex;
+      const done = rank < v.rankIndex;
+      ctx.fillStyle = here ? '#ffb36b' : done ? '#2f4a3a' : '#2b2e36';
+      rrect(ctx, 40, y, 330, rowH - 10, 21);
+      ctx.fill();
+      ctx.fillStyle = here ? '#16181d' : done ? '#8fe0ac' : '#7d8597';
+      ctx.font = `700 28px ${SANS}`;
+      ctx.fillText(name, 62, y + 31);
+      if (here) {
+        ctx.textAlign = 'right';
+        ctx.fillText('YOU', 352, y + 31);
+        ctx.textAlign = 'left';
+      }
     });
+    // records
+    const rx = 430;
+    ctx.fillStyle = '#7d8597';
+    ctx.font = `500 24px ${SANS}`;
+    ctx.fillText('BEST', rx, 190);
+    ctx.fillText('DAYS NOT FIRED', rx, 330);
+    ctx.fillStyle = '#f4efe6';
+    ctx.font = `800 84px ${MONO}`;
+    ctx.fillText(`${v.best}`, rx, 268);
+    ctx.fillText(`${v.streak}`, rx, 408);
+    const bestW = ctx.measureText(`${v.best}`).width;
+    ctx.font = `500 26px ${MONO}`;
+    ctx.fillStyle = '#7d8597';
+    ctx.fillText('WPM', rx + bestW + 12, 268);
+    if (v.nextCurse) {
+      ctx.fillStyle = '#ffb36b';
+      ctx.font = `700 26px ${SANS}`;
+      ctx.fillText(`Next rank adds: ${v.nextCurse}`, rx, 470);
+    }
+  }
+
+  // One big instruction at a time during the tutorial.
+  drawTutorial(ctx, w, h, v) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#7d8597';
+    ctx.font = `500 26px ${SANS}`;
+    ctx.fillText(`TRAINING  ${v.step} / ${v.steps}`, 40, 130);
+    for (let i = 0; i < v.steps; i++) {
+      ctx.fillStyle = i < v.step ? '#ffb36b' : '#2b2e36';
+      rrect(ctx, 40 + i * 64, 150, 52, 12, 6);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#f4efe6';
+    ctx.font = `800 64px ${SANS}`;
+    ctx.fillText(v.instruction, 40, 280);
+    if (v.instruction2) {
+      ctx.fillStyle = '#d7d2c8';
+      ctx.font = `500 34px ${SANS}`;
+      ctx.fillText(v.instruction2, 40, 340);
+    }
+    ctx.fillStyle = '#7d8597';
+    ctx.font = `500 24px ${SANS}`;
+    ctx.fillText('Already trained? Press the red button to skip.', 40, 470);
   }
 }

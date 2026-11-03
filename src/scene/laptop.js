@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from '@iwsdk/core';
 import { canvasTexture, rrect, wrapMono, MONO, SANS, std, damp } from '../util.js';
 
 const W = 0.44;
@@ -88,6 +88,12 @@ export class Laptop {
 
   // ---- screen drawing ----
   draw(view) {
+    // Only re-upload the screen texture when something visible changed.
+    const now = performance.now();
+    const phase = view.mode === 'menu' ? Math.floor(now / 200) : view.mode === 'email' ? Math.floor(now / 400) % 2 : 0;
+    const sig = JSON.stringify(view) + phase;
+    if (sig === this.lastSig) return;
+    this.lastSig = sig;
     const { ctx, canvas, tex } = this.screen;
     const w = canvas.width;
     const h = canvas.height;

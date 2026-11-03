@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from '@iwsdk/core';
 
 // Shared "poke a physical button with a fingertip" logic, used by every key and button.
 //
