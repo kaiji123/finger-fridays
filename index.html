@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finger Fridays</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1d22; font-family: 'Space Grotesk', system-ui, sans-serif; }
+    canvas { display: block; }
+    #hud {
+      position: fixed; left: 16px; bottom: 16px; max-width: 380px;
+      color: #f4efe6; background: rgba(20, 22, 28, 0.72); backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+      padding: 12px 14px; font-size: 13px; line-height: 1.5; pointer-events: auto;
+    }
+    #hud b { color: #ffb36b; }
+    #hud .title { font-weight: 700; font-size: 15px; letter-spacing: 0.02em; margin-bottom: 4px; }
+    #hud kbd { font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #2c2f38; border: 1px solid #444a57; border-radius: 4px; padding: 0 5px; }
+    #hud button { all: unset; cursor: pointer; color: #9aa3b5; font-size: 11px; margin-top: 4px; text-decoration: underline; }
+    #hud.min .body { display: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; color: #f4efe6; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <div id="loading">Clocking in…</div>
+  <div id="hud">
+    <div class="title">Finger Fridays: desktop simulator</div>
+    <div class="body">
+      <b>Click</b> keys with your cursor finger, or type on your real keyboard.<br />
+      <kbd>Enter</kbd> or click the red button to start, next shift, pause<br />
+      <kbd>Tab</kbd> or click the laptop to slam it shut or open it<br />
+      <kbd>←↑→↓</kbd> or right-drag to look around · <kbd>Esc</kbd> pause<br />
+      In a headset: tap <b>ENTER VR</b>. Fingertips press keys, slam the laptop with a fast palm-down swipe, flip your palm up to reopen it.<br />
+      No headset? Add <kbd>?emulate</kbd> to the URL for a Quest emulator.
+    </div>
+    <button id="hudToggle">hide help</button>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
